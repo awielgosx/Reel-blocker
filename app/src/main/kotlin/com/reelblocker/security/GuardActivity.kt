@@ -34,11 +34,13 @@ import com.reelblocker.ui.theme.ReelBlockerTheme
 class GuardActivity : ComponentActivity() {
 
     private lateinit var pinManager: PinManager
+    private lateinit var suppression: GuardSuppression
     private lateinit var target: GuardTarget
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pinManager = PinManager(this)
+        suppression = GuardSuppression(this)
         target = GuardTarget.entries.getOrElse(intent.getIntExtra(EXTRA_TARGET, 0)) { GuardTarget.APP_SETTINGS }
 
         setContent {
@@ -50,6 +52,7 @@ class GuardActivity : ComponentActivity() {
                         onVerify = { pin -> pinManager.verifyPin(pin) },
                         onRecover = { code, newPin -> pinManager.resetPinWithRecoveryCode(code, newPin) },
                         onSuccess = {
+                            suppression.suppressFor()
                             startActivity(intentFor(target))
                             finish()
                         },

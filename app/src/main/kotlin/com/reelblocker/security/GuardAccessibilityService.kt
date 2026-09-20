@@ -30,11 +30,16 @@ class GuardAccessibilityService : AccessibilityService() {
     }
 
     private val pinManager: PinManager by lazy { PinManager(this) }
+    private val suppression: GuardSuppression by lazy { GuardSuppression(this) }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         // Nothing to protect until a PIN actually exists - and without one, verifyPin() can
         // never succeed, which would otherwise strand the user on a PIN screen they can't pass.
         if (!pinManager.isPinSet()) return
+
+        // Grace window right after a verified PIN entry, so finishing the action the user just
+        // unlocked doesn't immediately get intercepted again on the very next screen it shows.
+        if (suppression.isSuppressed()) return
 
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in WATCHED_PACKAGES) return
@@ -43,7 +48,7 @@ class GuardAccessibilityService : AccessibilityService() {
         if (now - lastTriggerAtMillis < DEBOUNCE_MILLIS) return
 
         val root = rootInActiveWindow ?: return
-        if (!mentionsThisAppSpecifically(root)) return
+        if (!mentionsThisAppSpecifically(root, packageName)) return
 
         lastTriggerAtMillis = now
         val target = classifyTarget(root)
@@ -63,10 +68,15 @@ class GuardAccessibilityService : AccessibilityService() {
      * the user has to pass through to turn the toggle ON in the first place). Require an
      * action/detail keyword alongside the name so this only fires on an actual
      * disable/uninstall/admin screen, not a list that merely mentions the app.
+     *
+     * The package installer additionally shows this app's *install/update* confirmation, which
+     * must never be guarded (that's not a self-disable action) - so for that package, only the
+     * literal uninstall confirmation counts, not the broader Settings keyword set.
      */
-    private fun mentionsThisAppSpecifically(root: AccessibilityNodeInfo): Boolean {
+    private fun mentionsThisAppSpecifically(root: AccessibilityNodeInfo, packageName: String): Boolean {
         if (!nodeMentions(root, appLabel)) return false
-        return ACTION_KEYWORDS.any { nodeMentions(root, it) }
+        val keywords = if (packageName == "com.android.settings") ACTION_KEYWORDS else listOf("uninstall")
+        return keywords.any { nodeMentions(root, it) }
     }
 
     private fun classifyTarget(root: AccessibilityNodeInfo): GuardTarget {

@@ -25,11 +25,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.reelblocker.security.GuardSuppression
 import com.reelblocker.security.PinManager
 import com.reelblocker.ui.onboarding.onboardingSteps
 import com.reelblocker.ui.theme.ReelBlockerPanel
 
-private enum class SettingsPanel { NONE, CHANGE_PIN, VIEW_RECOVERY }
+private enum class SettingsPanel { NONE, CHANGE_PIN, VIEW_RECOVERY, PAUSE_PROTECTION }
 
 @Composable
 fun SettingsScreen(refreshTrigger: Int) {
@@ -45,16 +46,18 @@ fun SettingsScreen(refreshTrigger: Int) {
                 SettingsPanel.NONE -> SettingsMenu(
                     onChangePin = { panel = SettingsPanel.CHANGE_PIN },
                     onViewRecovery = { panel = SettingsPanel.VIEW_RECOVERY },
+                    onPauseProtection = { panel = SettingsPanel.PAUSE_PROTECTION },
                 )
                 SettingsPanel.CHANGE_PIN -> ChangePinPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
                 SettingsPanel.VIEW_RECOVERY -> ViewRecoveryPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
+                SettingsPanel.PAUSE_PROTECTION -> PauseProtectionPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
             }
         }
     }
 }
 
 @Composable
-private fun SettingsMenu(onChangePin: () -> Unit, onViewRecovery: () -> Unit) {
+private fun SettingsMenu(onChangePin: () -> Unit, onViewRecovery: () -> Unit, onPauseProtection: () -> Unit) {
     val context = LocalContext.current
 
     Column(
@@ -66,6 +69,14 @@ private fun SettingsMenu(onChangePin: () -> Unit, onViewRecovery: () -> Unit) {
         Button(onClick = onViewRecovery, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Text("View recovery code")
         }
+        Button(onClick = onPauseProtection, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text("Pause self-protection (15 min)")
+        }
+        Text(
+            "Use this before updating/uninstalling the app yourself, so the guard doesn't intercept you mid-update.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 4.dp),
+        )
         Text(
             "Permissions",
             style = MaterialTheme.typography.titleMedium,
@@ -148,6 +159,41 @@ private fun ViewRecoveryPanel(pinManager: PinManager, onDone: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
             )
+        }
+        TextButton(onClick = onDone, modifier = Modifier.padding(top = 12.dp)) { Text("Done") }
+    }
+}
+
+@Composable
+private fun PauseProtectionPanel(pinManager: PinManager, onDone: () -> Unit) {
+    val context = LocalContext.current
+    var currentPin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var paused by remember { mutableStateOf(false) }
+
+    Column {
+        Text("Pause self-protection", style = MaterialTheme.typography.titleMedium)
+        if (!paused) {
+            Text(
+                "Pauses the guard for 15 minutes so you can update, disable accessibility, or uninstall without being intercepted.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+            )
+            PinField(value = currentPin, onValueChange = { currentPin = it }, label = "Current PIN")
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp)) }
+            Button(
+                onClick = {
+                    if (pinManager.verifyPin(currentPin)) {
+                        GuardSuppression(context).suppressFor(15 * 60 * 1000L)
+                        paused = true
+                    } else {
+                        error = "Wrong PIN"
+                    }
+                },
+                modifier = Modifier.padding(top = 12.dp),
+            ) { Text("Pause for 15 minutes") }
+        } else {
+            Text("Protection paused for 15 minutes.", style = MaterialTheme.typography.bodyLarge)
         }
         TextButton(onClick = onDone, modifier = Modifier.padding(top = 12.dp)) { Text("Done") }
     }
