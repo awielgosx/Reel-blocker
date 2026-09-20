@@ -29,7 +29,13 @@ class GuardAccessibilityService : AccessibilityService() {
         serviceInfo = info
     }
 
+    private val pinManager: PinManager by lazy { PinManager(this) }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // Nothing to protect until a PIN actually exists - and without one, verifyPin() can
+        // never succeed, which would otherwise strand the user on a PIN screen they can't pass.
+        if (!pinManager.isPinSet()) return
+
         val packageName = event.packageName?.toString() ?: return
         if (packageName !in WATCHED_PACKAGES) return
 
@@ -37,8 +43,7 @@ class GuardAccessibilityService : AccessibilityService() {
         if (now - lastTriggerAtMillis < DEBOUNCE_MILLIS) return
 
         val root = rootInActiveWindow ?: return
-        val mentionsThisApp = nodeMentions(root, appLabel)
-        if (!mentionsThisApp) return
+        if (!mentionsThisAppSpecifically(root)) return
 
         lastTriggerAtMillis = now
         val target = classifyTarget(root)
@@ -50,6 +55,18 @@ class GuardAccessibilityService : AccessibilityService() {
 
     private val appLabel: String by lazy {
         packageManager.getApplicationLabel(applicationInfo).toString()
+    }
+
+    /**
+     * The app's name alone isn't enough to trigger - it shows up on plain list screens too
+     * (e.g. Settings > Accessibility > Installed apps just lists every service by name, which
+     * the user has to pass through to turn the toggle ON in the first place). Require an
+     * action/detail keyword alongside the name so this only fires on an actual
+     * disable/uninstall/admin screen, not a list that merely mentions the app.
+     */
+    private fun mentionsThisAppSpecifically(root: AccessibilityNodeInfo): Boolean {
+        if (!nodeMentions(root, appLabel)) return false
+        return ACTION_KEYWORDS.any { nodeMentions(root, it) }
     }
 
     private fun classifyTarget(root: AccessibilityNodeInfo): GuardTarget {
@@ -87,6 +104,10 @@ class GuardAccessibilityService : AccessibilityService() {
             "com.google.android.packageinstaller",
             "com.android.packageinstaller",
             "com.google.android.permissioncontroller",
+        )
+        private val ACTION_KEYWORDS = listOf(
+            "turn off", "use reel blocker", "uninstall", "remove app", "device admin",
+            "deactivate", "app info", "force stop",
         )
     }
 }
