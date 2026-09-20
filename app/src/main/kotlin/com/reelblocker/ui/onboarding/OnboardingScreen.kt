@@ -100,7 +100,8 @@ fun OnboardingScreen(refreshTrigger: Int, onAllPermissionsGranted: () -> Unit, o
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        com.reelblocker.ui.theme.ReelBlockerPanel(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(onboardingSteps) { step ->
                 val granted = step.isGranted(context)
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
@@ -132,6 +133,7 @@ fun OnboardingScreen(refreshTrigger: Int, onAllPermissionsGranted: () -> Unit, o
                     PinSetupSection(pinManager = pinManager, onDone = onPinConfigured)
                 }
             }
+        }
         }
     }
 }

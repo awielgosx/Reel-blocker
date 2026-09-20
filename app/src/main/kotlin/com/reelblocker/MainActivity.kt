@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -34,6 +35,8 @@ import com.reelblocker.ui.history.HistoryScreen
 import com.reelblocker.ui.onboarding.OnboardingScreen
 import com.reelblocker.ui.onboarding.onboardingSteps
 import com.reelblocker.ui.settings.SettingsScreen
+import androidx.compose.material3.MaterialTheme
+import com.reelblocker.ui.theme.AppBackground
 import com.reelblocker.ui.theme.ReelBlockerTheme
 
 class MainActivity : ComponentActivity() {
@@ -41,7 +44,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             ReelBlockerTheme {
-                Surface { RootScreen() }
+                AppBackground {
+                    Surface(color = Color.Transparent, contentColor = MaterialTheme.colorScheme.onBackground) {
+                        RootScreen()
+                    }
+                }
             }
         }
     }

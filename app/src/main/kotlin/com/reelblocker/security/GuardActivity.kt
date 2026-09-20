@@ -24,9 +24,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.reelblocker.ui.theme.AppBackground
 import com.reelblocker.ui.theme.ReelBlockerTheme
 
 class GuardActivity : ComponentActivity() {
@@ -41,7 +43,8 @@ class GuardActivity : ComponentActivity() {
 
         setContent {
             ReelBlockerTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                AppBackground {
+                Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent, contentColor = MaterialTheme.colorScheme.onBackground) {
                     GuardScreen(
                         target = target,
                         onVerify = { pin -> pinManager.verifyPin(pin) },
@@ -52,6 +55,7 @@ class GuardActivity : ComponentActivity() {
                         },
                         onCancel = { finish() },
                     )
+                }
                 }
             }
         }

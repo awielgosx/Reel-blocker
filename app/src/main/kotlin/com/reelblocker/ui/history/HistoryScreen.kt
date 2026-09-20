@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.reelblocker.data.DayUsage
 import com.reelblocker.data.UsageRepository
 import com.reelblocker.tracking.DayBoundary
+import com.reelblocker.ui.theme.ReelBlockerPanel
 import com.reelblocker.util.DurationFormat
 import java.time.format.DateTimeFormatter
 
@@ -44,14 +45,17 @@ fun HistoryScreen() {
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
 
-        if (days.isNotEmpty()) {
-            WeekBarChart(days, modifier = Modifier.fillMaxWidth().height(160.dp))
-        }
-
-        Column(modifier = Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            days.forEach { day ->
-                val label = day.day.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
-                Text("$label — ${DurationFormat.format(day.totalMillis)}", style = MaterialTheme.typography.bodyLarge)
+        ReelBlockerPanel(modifier = Modifier.fillMaxWidth()) {
+            Column {
+                if (days.isNotEmpty()) {
+                    WeekBarChart(days, modifier = Modifier.fillMaxWidth().height(160.dp))
+                }
+                Column(modifier = Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    days.forEach { day ->
+                        val label = day.day.format(DateTimeFormatter.ofPattern("EEE, MMM d"))
+                        Text("$label — ${DurationFormat.format(day.totalMillis)}", style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
             }
         }
     }

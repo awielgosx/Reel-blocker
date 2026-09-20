@@ -5,8 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
@@ -27,6 +27,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.reelblocker.security.PinManager
 import com.reelblocker.ui.onboarding.onboardingSteps
+import com.reelblocker.ui.theme.ReelBlockerPanel
 
 private enum class SettingsPanel { NONE, CHANGE_PIN, VIEW_RECOVERY }
 
@@ -39,13 +40,15 @@ fun SettingsScreen(refreshTrigger: Int) {
     Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(bottom = 16.dp))
 
-        when (panel) {
-            SettingsPanel.NONE -> SettingsMenu(
-                onChangePin = { panel = SettingsPanel.CHANGE_PIN },
-                onViewRecovery = { panel = SettingsPanel.VIEW_RECOVERY },
-            )
-            SettingsPanel.CHANGE_PIN -> ChangePinPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
-            SettingsPanel.VIEW_RECOVERY -> ViewRecoveryPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
+        ReelBlockerPanel(modifier = Modifier.fillMaxWidth()) {
+            when (panel) {
+                SettingsPanel.NONE -> SettingsMenu(
+                    onChangePin = { panel = SettingsPanel.CHANGE_PIN },
+                    onViewRecovery = { panel = SettingsPanel.VIEW_RECOVERY },
+                )
+                SettingsPanel.CHANGE_PIN -> ChangePinPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
+                SettingsPanel.VIEW_RECOVERY -> ViewRecoveryPanel(pinManager, onDone = { panel = SettingsPanel.NONE })
+            }
         }
     }
 }
@@ -54,20 +57,21 @@ fun SettingsScreen(refreshTrigger: Int) {
 private fun SettingsMenu(onChangePin: () -> Unit, onViewRecovery: () -> Unit) {
     val context = LocalContext.current
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        item {
-            Text("Security", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
-            Button(onClick = onChangePin, modifier = Modifier.fillMaxWidth()) { Text("Change PIN") }
-            Button(onClick = onViewRecovery, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Text("View recovery code")
-            }
-            Text(
-                "Permissions",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-            )
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text("Security", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+        Button(onClick = onChangePin, modifier = Modifier.fillMaxWidth()) { Text("Change PIN") }
+        Button(onClick = onViewRecovery, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text("View recovery code")
         }
-        items(onboardingSteps) { step ->
+        Text(
+            "Permissions",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
+        )
+        onboardingSteps.forEach { step ->
             val granted = step.isGranted(context)
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(step.title, style = MaterialTheme.typography.titleSmall)
