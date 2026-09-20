@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Reel Blocker</string>
+    <string name="widget_label">Reel Blocker Usage</string>
+    <string name="accessibility_service_description">Lets Reel Blocker protect its own settings from being turned off by accident. It does not read or act on content in other apps in this build.</string>
+</resources>

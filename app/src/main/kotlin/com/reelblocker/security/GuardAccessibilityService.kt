@@ -1,0 +1,99 @@
+package com.reelblocker.security
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+
+/**
+ * Milestone 1 scope: this service exists only to protect Reel Blocker's own settings from being
+ * turned off on impulse. It watches for the system Settings app / package installer showing a
+ * screen that mentions this app (accessibility toggle, device admin deactivation, uninstall),
+ * backs out of it immediately, and hands off to [GuardActivity] to require the PIN before letting
+ * the user back in. It does not read or act on content in Instagram/Facebook/YouTube in this
+ * build - that's Milestone 2.
+ */
+class GuardAccessibilityService : AccessibilityService() {
+
+    private var lastTriggerAtMillis = 0L
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        val info = AccessibilityServiceInfo().apply {
+            eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+            flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            notificationTimeout = 100
+            packageNames = WATCHED_PACKAGES.toTypedArray()
+        }
+        serviceInfo = info
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        val packageName = event.packageName?.toString() ?: return
+        if (packageName !in WATCHED_PACKAGES) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastTriggerAtMillis < DEBOUNCE_MILLIS) return
+
+        val root = rootInActiveWindow ?: return
+        val mentionsThisApp = nodeMentions(root, appLabel)
+        if (!mentionsThisApp) return
+
+        lastTriggerAtMillis = now
+        val target = classifyTarget(root)
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        GuardActivity.launch(this, target)
+    }
+
+    override fun onInterrupt() {}
+
+    private val appLabel: String by lazy {
+        packageManager.getApplicationLabel(applicationInfo).toString()
+    }
+
+    private fun classifyTarget(root: AccessibilityNodeInfo): GuardTarget {
+        return when {
+            nodeMentions(root, "Accessibility") -> GuardTarget.ACCESSIBILITY_SETTINGS
+            nodeMentions(root, "device admin") || nodeMentions(root, "Device admin") ->
+                GuardTarget.DEVICE_ADMIN_SETTINGS
+            nodeMentions(root, "Uninstall") -> GuardTarget.UNINSTALL
+            else -> GuardTarget.APP_SETTINGS
+        }
+    }
+
+    private fun nodeMentions(node: AccessibilityNodeInfo, needle: String, depth: Int = 0): Boolean {
+        if (depth > MAX_SCAN_DEPTH) return false
+        val text = node.text?.toString()
+        val description = node.contentDescription?.toString()
+        if (text?.contains(needle, ignoreCase = true) == true) return true
+        if (description?.contains(needle, ignoreCase = true) == true) return true
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            try {
+                if (nodeMentions(child, needle, depth + 1)) return true
+            } finally {
+                child.recycle()
+            }
+        }
+        return false
+    }
+
+    companion object {
+        private const val DEBOUNCE_MILLIS = 1500L
+        private const val MAX_SCAN_DEPTH = 40
+        private val WATCHED_PACKAGES = listOf(
+            "com.android.settings",
+            "com.google.android.packageinstaller",
+            "com.android.packageinstaller",
+            "com.google.android.permissioncontroller",
+        )
+    }
+}
+
+enum class GuardTarget {
+    ACCESSIBILITY_SETTINGS,
+    DEVICE_ADMIN_SETTINGS,
+    UNINSTALL,
+    APP_SETTINGS,
+}
