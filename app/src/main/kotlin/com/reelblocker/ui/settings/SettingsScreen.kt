@@ -69,14 +69,22 @@ private fun SettingsMenu(onChangePin: () -> Unit, onViewRecovery: () -> Unit, on
         Button(onClick = onViewRecovery, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Text("View recovery code")
         }
-        Button(onClick = onPauseProtection, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Text("Pause self-protection (15 min)")
+        if (com.reelblocker.security.SelfProtectionConfig.ENABLED) {
+            Button(onClick = onPauseProtection, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text("Pause self-protection (15 min)")
+            }
+            Text(
+                "Use this before updating/uninstalling the app yourself, so the guard doesn't intercept you mid-update.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        } else {
+            Text(
+                "Self-protection is off while builds are still changing frequently — nothing to pause right now.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
-        Text(
-            "Use this before updating/uninstalling the app yourself, so the guard doesn't intercept you mid-update.",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 4.dp),
-        )
         Text(
             "Permissions",
             style = MaterialTheme.typography.titleMedium,

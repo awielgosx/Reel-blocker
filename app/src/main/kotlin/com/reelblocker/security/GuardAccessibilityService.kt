@@ -33,6 +33,9 @@ class GuardAccessibilityService : AccessibilityService() {
     private val suppression: GuardSuppression by lazy { GuardSuppression(this) }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // Master switch - see SelfProtectionConfig. Off during active development on purpose.
+        if (!SelfProtectionConfig.ENABLED) return
+
         // Nothing to protect until a PIN actually exists - and without one, verifyPin() can
         // never succeed, which would otherwise strand the user on a PIN screen they can't pass.
         if (!pinManager.isPinSet()) return

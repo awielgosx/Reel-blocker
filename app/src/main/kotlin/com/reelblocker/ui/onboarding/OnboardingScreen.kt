@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.reelblocker.permissions.PermissionChecks
 import com.reelblocker.security.PinManager
 import com.reelblocker.security.ReelBlockerDeviceAdminReceiver
+import com.reelblocker.security.SelfProtectionConfig
 
 data class OnboardingStep(
     val title: String,
@@ -42,7 +43,13 @@ data class OnboardingStep(
     val action: (android.content.Context) -> Intent?,
 )
 
-val onboardingSteps = listOf(
+private val accessibilityExplanation = if (SelfProtectionConfig.ENABLED) {
+    "Lets Reel Blocker protect its own settings from being switched off by accident. Since this app isn't from the Play Store, Android may grey the toggle out at first — tap the app's name, then the ⋮ menu, then \"Allow restricted settings\", then come back here and turn it on."
+} else {
+    "Needed for the reel-blocking work coming in the next update. Self-protection is intentionally turned off while we're still actively testing builds, so this won't intercept anything yet. Since this app isn't from the Play Store, Android may grey the toggle out at first — tap the app's name, then the ⋮ menu, then \"Allow restricted settings\", then come back here and turn it on."
+}
+
+private val baseOnboardingSteps = listOf(
     OnboardingStep(
         title = "Usage access",
         explanation = "Lets the app see how long Instagram/Facebook/YouTube are on screen, so it can show your timer. Find \"Reel Blocker\" in the list and turn it on.",
@@ -63,7 +70,7 @@ val onboardingSteps = listOf(
     ),
     OnboardingStep(
         title = "Accessibility service",
-        explanation = "Lets Reel Blocker protect its own settings from being switched off by accident. Since this app isn't from the Play Store, Android may grey the toggle out at first — tap the app's name, then the ⋮ menu, then \"Allow restricted settings\", then come back here and turn it on.",
+        explanation = accessibilityExplanation,
         isGranted = { PermissionChecks.isAccessibilityGuardEnabled(it) },
         action = { Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
     ),
@@ -82,6 +89,16 @@ val onboardingSteps = listOf(
         },
     ),
 )
+
+/**
+ * Device admin is dropped entirely while [SelfProtectionConfig.ENABLED] is false - nothing to
+ * grant, nothing that can strand you on an unpassable screen during active development.
+ */
+val onboardingSteps = if (SelfProtectionConfig.ENABLED) {
+    baseOnboardingSteps
+} else {
+    baseOnboardingSteps.filterNot { it.title == "Device admin" }
+}
 
 @Composable
 fun OnboardingScreen(refreshTrigger: Int, onAllPermissionsGranted: () -> Unit, onPinConfigured: () -> Unit) {
