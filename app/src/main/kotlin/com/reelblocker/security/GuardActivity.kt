@@ -87,7 +87,7 @@ class GuardActivity : ComponentActivity() {
 }
 
 @Composable
-private fun GuardScreen(
+internal fun GuardScreen(
     target: GuardTarget,
     onVerify: (String) -> Boolean,
     onRecover: (code: String, newPin: String) -> Boolean,

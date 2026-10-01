@@ -16,30 +16,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 /**
  * Foreground service that is the source of truth for "what's on screen right now" and "how long
- * has it been there today". Polls [UsagePoller] every [POLL_INTERVAL_MILLIS], persists to Room,
- * and publishes to [TrackingState] for the UI/widget plus the ongoing notification.
+ * has it been there today". Polls [UsagePoller] every [POLL_INTERVAL_MILLIS], delegates the
+ * actual session/day-boundary decisions to [SessionTracker] (unit-tested separately), persists
+ * what it says to Room, and publishes to [TrackingState] for the UI/widget plus the notification.
  */
 class TrackingService : Service() {
 
     private lateinit var repository: UsageRepository
+    private val tracker = SessionTracker()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var loopJob: Job? = null
-
-    private var currentSession: SessionState? = null
-    private var trackedDay: LocalDate = DayBoundary.currentAppDay()
-    private var dayTotals: MutableMap<MonitoredApp, Long> = mutableMapOf()
+    private var state: SessionTracker.State = SessionTracker.State(DayBoundary.currentAppDay(), emptyMap(), null)
     private var ticksSinceWidgetPush = 0
-
-    private data class SessionState(
-        val app: MonitoredApp,
-        val appDay: LocalDate,
-        val baselineMillis: Long,
-        var sessionMillis: Long = 0L,
-    )
 
     override fun onCreate() {
         super.onCreate()
@@ -51,7 +42,7 @@ class TrackingService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (loopJob == null) {
             loopJob = scope.launch {
-                loadDayTotals(trackedDay)
+                state = state.copy(dayTotalsMillis = repository.getDay(state.trackedDay).perAppMillis)
                 runLoop()
             }
         }
@@ -65,10 +56,6 @@ class TrackingService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private suspend fun loadDayTotals(day: LocalDate) {
-        dayTotals = repository.getDay(day).perAppMillis.toMutableMap()
-    }
-
     private suspend fun runLoop() {
         var lastElapsed = SystemClock.elapsedRealtime()
         while (true) {
@@ -79,36 +66,28 @@ class TrackingService : Service() {
 
             val foregroundPackage = UsagePoller.getCurrentForegroundPackage(this@TrackingService)
             val foregroundApp = MonitoredApp.fromPackageName(foregroundPackage)
-            val session = currentSession
 
-            if (foregroundApp == null) {
-                currentSession = null
-            } else if (session == null || session.app != foregroundApp) {
-                val appDay = DayBoundary.currentAppDay()
-                val baseline = repository.getDay(appDay).perAppMillis[foregroundApp] ?: 0L
-                currentSession = SessionState(foregroundApp, appDay, baseline)
+            val outcome = tracker.tick(
+                state = state,
+                foregroundApp = foregroundApp,
+                deltaMillis = deltaMillis,
+                nowAppDay = DayBoundary.currentAppDay(),
+                baselineLookup = { day, app -> repository.getDay(day).perAppMillis[app] ?: 0L },
+            )
+
+            outcome.persist?.let { repository.recordForegroundMillis(it.appDay, it.app, it.totalMillis) }
+
+            state = if (outcome.needsDayReload != null) {
+                val fresh = repository.getDay(outcome.needsDayReload).perAppMillis
+                outcome.newState.copy(dayTotalsMillis = fresh)
             } else {
-                session.sessionMillis += deltaMillis
-            }
-
-            currentSession?.let { s ->
-                val totalForDay = s.baselineMillis + s.sessionMillis
-                repository.recordForegroundMillis(s.appDay, s.app, totalForDay)
-                if (s.appDay == trackedDay) {
-                    dayTotals[s.app] = totalForDay
-                }
-            }
-
-            val nowAppDay = DayBoundary.currentAppDay()
-            if (nowAppDay != trackedDay && (currentSession == null || currentSession?.appDay == nowAppDay)) {
-                trackedDay = nowAppDay
-                loadDayTotals(trackedDay)
+                outcome.newState
             }
 
             val live = LiveUsage(
-                sessionApp = currentSession?.app,
-                sessionMillis = currentSession?.sessionMillis ?: 0L,
-                dayTotalsMillis = dayTotals.toMap(),
+                sessionApp = state.session?.app,
+                sessionMillis = state.session?.sessionMillis ?: 0L,
+                dayTotalsMillis = state.dayTotalsMillis,
             )
             TrackingState.update(live)
             NotificationManagerCompat.from(this@TrackingService)
