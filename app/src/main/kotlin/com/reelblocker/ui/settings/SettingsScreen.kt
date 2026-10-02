@@ -93,7 +93,10 @@ private fun SettingsMenu(onChangePin: () -> Unit, onViewRecovery: () -> Unit, on
         onboardingSteps.forEach { step ->
             val granted = step.isGranted(context)
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                Text(step.title, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    if (step.required) step.title else "${step.title} (optional)",
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 if (granted) {
                     Icon(Icons.Filled.Check, contentDescription = "Granted", tint = MaterialTheme.colorScheme.primary)
                 } else {

@@ -29,6 +29,9 @@ class UsageWidgetProvider : AppWidgetProvider() {
             try {
                 val usage = resolveUsage(context)
                 appWidgetIds.forEach { id -> appWidgetManager.updateAppWidget(id, buildViews(context, usage)) }
+            } catch (e: Exception) {
+                // A Room read failure here must not crash the whole app process - leave the
+                // widget showing its last-known content rather than taking the app down.
             } finally {
                 pending.finish()
             }

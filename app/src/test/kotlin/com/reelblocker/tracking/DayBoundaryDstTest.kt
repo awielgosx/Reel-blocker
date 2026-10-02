@@ -23,7 +23,9 @@ class DayBoundaryDstTest {
         val zone = ZoneId.of("America/New_York")
         // Find the next real DST transition in this zone after a fixed point, rather than
         // hardcoding a date that could drift with calendar rule changes.
-        val transition = zone.rules.nextTransition(Instant.parse("2026-01-01T00:00:00Z"))
+        val transition = requireNotNull(zone.rules.nextTransition(Instant.parse("2026-01-01T00:00:00Z"))) {
+            "expected a DST transition in America/New_York after 2026-01-01"
+        }
         val transitionDate = LocalDateTime.ofInstant(transition.instant, zone).toLocalDate()
 
         val justBeforeBoundary = LocalDateTime.of(transitionDate, LocalTime.of(5, 59, 59))
