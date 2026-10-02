@@ -41,12 +41,14 @@ data class OnboardingStep(
     val explanation: String,
     val isGranted: (android.content.Context) -> Boolean,
     val action: (android.content.Context) -> Intent?,
+    /** Required steps gate PIN setup; optional steps are shown but don't block finishing. */
+    val required: Boolean = true,
 )
 
 private val accessibilityExplanation = if (SelfProtectionConfig.ENABLED) {
     "Lets Reel Blocker protect its own settings from being switched off by accident. Since this app isn't from the Play Store, Android may grey the toggle out at first — tap the app's name, then the ⋮ menu, then \"Allow restricted settings\", then come back here and turn it on."
 } else {
-    "Needed for the reel-blocking work coming in the next update. Self-protection is intentionally turned off while we're still actively testing builds, so this won't intercept anything yet. Since this app isn't from the Play Store, Android may grey the toggle out at first — tap the app's name, then the ⋮ menu, then \"Allow restricted settings\", then come back here and turn it on."
+    "Not used yet - self-protection is intentionally off while builds are still changing, and the reel-blocking feature that will need this hasn't been built. Grant it now if you want to get ahead of it, or skip it; it won't block finishing setup. Since this app isn't from the Play Store, Android may grey the toggle out at first — tap the app's name, then the ⋮ menu, then \"Allow restricted settings\", then come back here and turn it on."
 }
 
 private val baseOnboardingSteps = listOf(
@@ -73,6 +75,7 @@ private val baseOnboardingSteps = listOf(
         explanation = accessibilityExplanation,
         isGranted = { PermissionChecks.isAccessibilityGuardEnabled(it) },
         action = { Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS) },
+        required = SelfProtectionConfig.ENABLED,
     ),
     OnboardingStep(
         title = "Device admin",
@@ -93,6 +96,8 @@ private val baseOnboardingSteps = listOf(
 /**
  * Device admin is dropped entirely while [SelfProtectionConfig.ENABLED] is false - nothing to
  * grant, nothing that can strand you on an unpassable screen during active development.
+ * Accessibility stays listed (Milestone 2 will need it) but is marked optional so it can't block
+ * finishing setup for a permission that currently does nothing.
  */
 val onboardingSteps = if (SelfProtectionConfig.ENABLED) {
     baseOnboardingSteps
@@ -107,12 +112,12 @@ fun OnboardingScreen(refreshTrigger: Int, onAllPermissionsGranted: () -> Unit, o
 
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
-    val allGranted = onboardingSteps.all { it.isGranted(context) }
+    val allRequiredGranted = onboardingSteps.filter { it.required }.all { it.isGranted(context) }
 
     Column(modifier = Modifier.fillMaxSize().padding(20.dp)) {
         Text("Set up Reel Blocker", style = MaterialTheme.typography.headlineSmall)
         Text(
-            "A few permissions are required for the timer and self-protection to work.",
+            "A few permissions are required for the timer to work. Anything marked optional can be skipped for now.",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
         )
@@ -123,7 +128,10 @@ fun OnboardingScreen(refreshTrigger: Int, onAllPermissionsGranted: () -> Unit, o
                 val granted = step.isGranted(context)
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
                     Column {
-                        Text(step.title, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (step.required) step.title else "${step.title} (optional)",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Text(step.explanation, style = MaterialTheme.typography.bodySmall)
                     }
                     if (granted) {
@@ -146,7 +154,7 @@ fun OnboardingScreen(refreshTrigger: Int, onAllPermissionsGranted: () -> Unit, o
             }
 
             item {
-                if (allGranted) {
+                if (allRequiredGranted) {
                     PinSetupSection(pinManager = pinManager, onDone = onPinConfigured)
                 }
             }

@@ -70,7 +70,7 @@ private fun RootScreen() {
     }
 
     val setupComplete = refreshTrigger.let {
-        onboardingSteps.all { step -> step.isGranted(context) } && pinManager.isPinSet()
+        onboardingSteps.filter { step -> step.required }.all { step -> step.isGranted(context) } && pinManager.isPinSet()
     }
 
     if (!setupComplete) {

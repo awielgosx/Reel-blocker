@@ -6,15 +6,33 @@ import android.content.ComponentName
 import android.content.Context
 import android.widget.RemoteViews
 import com.reelblocker.R
+import com.reelblocker.data.UsageRepository
+import com.reelblocker.tracking.DayBoundary
 import com.reelblocker.tracking.LiveUsage
 import com.reelblocker.tracking.TrackingState
 import com.reelblocker.util.DurationFormat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class UsageWidgetProvider : AppWidgetProvider() {
 
+    /**
+     * System-triggered updates (placement, reboot, the periodic refresh) can land before the
+     * foreground service has ticked even once this process - [TrackingState] would still be at
+     * its untouched zero default then. Fall back to reading straight from Room in that case
+     * instead of showing a false "0m" the moment the widget appears.
+     */
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val usage = TrackingState.live.value
-        appWidgetIds.forEach { id -> appWidgetManager.updateAppWidget(id, buildViews(context, usage)) }
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val usage = resolveUsage(context)
+                appWidgetIds.forEach { id -> appWidgetManager.updateAppWidget(id, buildViews(context, usage)) }
+            } finally {
+                pending.finish()
+            }
+        }
     }
 
     companion object {
@@ -24,6 +42,15 @@ class UsageWidgetProvider : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val views = buildViews(context, usage)
             ids.forEach { id -> manager.updateAppWidget(id, views) }
+        }
+
+        private suspend fun resolveUsage(context: Context): LiveUsage {
+            val live = TrackingState.live.value
+            if (live.sessionApp != null || live.dayTotalsMillis.isNotEmpty()) return live
+
+            val today = DayBoundary.currentAppDay()
+            val dayUsage = UsageRepository(context).getDay(today)
+            return LiveUsage(sessionApp = null, sessionMillis = 0L, dayTotalsMillis = dayUsage.perAppMillis)
         }
 
         private fun buildViews(context: Context, usage: LiveUsage): RemoteViews {
